@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>おけたに先生のたのしい算数ゲーム</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', sans-serif;
+            background-color: #ffe4e1;
+            text-align: center;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ffb6c1;
+            border-radius: 10px;
+            background-color: #fff0f5;
+        }
+        .result {
+            font-size: 24px;
+            color: #ff69b4;
+            font-weight: bold;
+        }
+        .button {
+            padding: 10px 20px;
+            background-color: #ffb6c1;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            margin: 10px;
+            border-radius: 10px;
+        }
+        .button:hover {
+            background-color: #ff69b4;
+        }
+        .math-problem {
+            font-size: 20px;
+            margin: 10px 0;
+        }
+        .input {
+            font-size: 18px;
+            padding: 5px;
+            width: 100px;
+            border-radius: 5px;
+        }
+        .number-pad {
+            margin-top: 20px;
+        }
+        .number-pad button {
+            font-size: 24px;
+            width: 50px;
+            height: 50px;
+            margin: 5px;
+            border: none;
+            border-radius: 10px;
+            background-color: #FFD700;
+            color: white;
+        }
+        .number-pad button:hover {
+            background-color: #FF1493;
+        }
+        .correct {
+            color: #00ff00;
+        }
+        .incorrect {
+            color: #ff0000;
+        }
+        .points {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .drumroll {
+            display: none;
+        }
+        .dark-mode {
+            background-color: #333;
+            color: #fff;
+        }
+        .dark-mode .section {
+            border: 1px solid #555;
+            background-color: #444;
+        }
+        .dark-mode .button {
+            background-color: #555;
+        }
+        .dark-mode .button:hover {
+            background-color: #777;
+        }
+        .dark-mode .result {
+            color: #ff4500;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="color: #ff69b4;">おけたに先生のたのしい算数ゲーム</h1>
+    <div class="points">ポイント: <span id="points">0</span></div>
+    <div>
+        <button class="button" onclick="switchMode('normal')">ノーマルモード</button>
+        <button class="button" onclick="switchMode('time-attack')">タイムアタックモード</button>
+    </div>
+    <div id="normal-mode" class="section">
+        <h2 style="color: #ffa07a;">ガチャを引いてみよう！</h2>
+        <button class="button" id="gachaButton" onmousedown="drawGacha(event)">ガチャを引く</button>
+        <div id="gachaResult" class="result"></div>
+        <div id="mathProblems" class="math-problems"></div>
+        <button class="button hidden" id="checkButton" onclick="checkAnswers()">答え合わせ</button>
+        <div id="answerResults" class="results"></div>
+    </div>
+
+    <div id="time-attack-mode" class="section hidden">
+        <h2 style="color: #32cd32;">タイムアタックモード</h2>
+        <button class="button" onclick="startTimeAttack()">スタート</button>
+        <div id="timeAttackProblems" class="math-problems"></div>
+        <div class="number-pad">
+            <button onclick="inputNumber(1)">1</button>
+            <button onclick="inputNumber(2)">2</button>
+            <button onclick="inputNumber(3)">3</button>
+            <br>
+            <button onclick="inputNumber(4)">4</button>
+            <button onclick="inputNumber(5)">5</button>
+            <button onclick="inputNumber(6)">6</button>
+            <br>
+            <button onclick="inputNumber(7)">7</button>
+            <button onclick="inputNumber(8)">8</button>
+            <button onclick="inputNumber(9)">9</button>
+            <br>
+            <button onclick="inputNumber(0)">0</button>
+            <button id="submit-button" onclick="submitAnswer()">回答</button>
+        </div>
+        <div id="timeAttackResults" class="results"></div>
+        <div id="ranking"></div>
+    </div>
+    <audio id="correctSound" src="https://www.soundjay.com/button/sounds/button-09.mp3" preload="auto"></audio>
+    <audio id="incorrectSound" src="https://www.soundjay.com/button/sounds/button-10.mp3" preload="auto"></audio>
+    <audio id="drumroll" src="https://www.soundjay.com/button/sounds/drumroll-01.mp3" preload="auto"></audio>
+
+    <script>
+        let currentDifficulty;
+        let totalPoints = 0;
+        let allCorrect = true;
+        let alreadyAwarded = false;
+        let darkMode = false;
+        let mode = 'normal';
+        let startTime;
+        let bestTime = Infinity;
+        let ranking = JSON.parse(localStorage.getItem('ranking')) || [];
+        let timeAttackProblems = [];
+        let currentProblemIndex = 0;
+        let inputValue = "";
+
+        function switchMode(selectedMode) {
+            mode = selectedMode;
+            document.getElementById('normal-mode').classList.toggle('hidden', mode !== 'normal');
+            document.getElementById('time-attack-mode').classList.toggle('hidden', mode !== 'time-attack');
+        }
+
+        function drawGacha(event) {
+            if (!allCorrect) {
+                alert("全問正解しないと次のガチャを引けません！");
+                return;
+            }
+
+            if (event.shiftKey) {
+                currentDifficulty = '★10';
+                document.body.classList.add('dark-mode');
+                displayMathProblems(currentDifficulty);
+                allCorrect = false;
+                alreadyAwarded = false;
+            } else {
+                document.getElementById('drumroll').play();
+                setTimeout(() => {
+                    const rarity = ['★1', '★2', '★3', '★4', '★5', '★10', '★15'];
+                    const weights = [70, 20, 7, 2, 1, 0, 0];
+                    const result = getRandomRarity(rarity, weights);
+                    document.getElementById('gachaResult').innerText = result;
+                    currentDifficulty = result;
+                    displayMathProblems(result);
+                    allCorrect = false;
+                    alreadyAwarded = false;
+                }, 3000);
+            }
+        }
+
+        function getRandomRarity(rarity, weights) {
+            const totalWeight = weights.reduce((acc, weight) => acc + weight, 0);
+            let random = Math.floor(Math.random() * totalWeight);
+            for (let i = 0; i < weights.length; i++) {
+                if (random < weights[i]) {
+                    return rarity[i];
+                }
+                random -= weights[i];
+            }
+            return rarity[0];
+        }
+
+        function generateDivisionProblems(difficulty) {
+            const problems = [];
+            let minDividend, maxDividend, maxDivisor;
+
+            switch (difficulty) {
+                case '★1':
+                case '★2':
+                    minDividend = 10;
+                    maxDividend = 99;
+                    maxDivisor = 9;
+                    break;
+                case '★3':
+                case '★4':
+                    minDividend = 100;
+                    maxDividend = 999;
+                    maxDivisor = 99;
+                    break;
+                case '★5':
+                    minDividend = 1000;
+                    maxDividend = 9999;
+                    maxDivisor = 999;
+                    break;
+                case '★10':
+                    minDividend = 1000000000;
+                    maxDividend = 9999999999;
+                    maxDivisor = 9999;
+                    break;
+                case '★15':
+                    minDividend = 100000000000000;
+                    maxDividend = 999999999999999;
+                    maxDivisor = 99999;
+                    break;
+                default:
+                    minDividend = 10;
+                    maxDividend = 99;
+                    maxDivisor = 9;
+            }
+
+            for (let i = 0; i < 3; i++) {
+                const dividend = Math.floor(Math.random() * (maxDividend - minDividend + 1)) + minDividend;
+                const divisor = Math.floor(Math.random() * maxDivisor) + 2;
+                const question = `${dividend} ÷ ${divisor}`;
+                const answer = Math.floor(dividend / divisor);
+                const remainder = dividend % divisor;
+                problems.push({ question, answer, remainder });
+            }
+
+            return problems;
+        }
+
+        function displayMathProblems(difficulty) {
+            const problems = generateDivisionProblems(difficulty);
+            const mathProblemsDiv = document.getElementById('mathProblems');
+            mathProblemsDiv.innerHTML = '';
+            problems.forEach((problem, index) => {
+                const problemDiv = document.createElement('div');
+                problemDiv.className = 'math-problem';
+                problemDiv.innerHTML = `
+                    ${problem.question} =
+                    <input type="text" class="input" id="answer${index}">
+                    あまり
+                    <input type="text" class="input" id="remainder${index}">
+                `;
+                mathProblemsDiv.appendChild(problemDiv);
+            });
+            document.getElementById('checkButton').classList.remove('hidden');
+        }
+
+        function checkAnswers() {
+            const problems = document.querySelectorAll('.math-problem');
+            let resultHTML = '';
+            allCorrect = true;
+            problems.forEach((problem, index) => {
+                const userAnswer = document.getElementById(`answer${index}`).value;
+                const userRemainder = document.getElementById(`remainder${index}`).value;
+                const correctAnswer = Math.floor(parseInt(problem.textContent.split('=')[0].split('÷')[0].trim()) /
+                                      parseInt(problem.textContent.split('=')[0].split('÷')[1].trim()));
+                const correctRemainder = parseInt(problem.textContent.split('=')[0].split('÷')[0].trim()) %
+                                         parseInt(problem.textContent.split('=')[0].split('÷')[1].trim());
+
+                if (userAnswer == correctAnswer && userRemainder == correctRemainder) {
+                    resultHTML += `<div class="correct">${problem.textContent} = ${userAnswer} あまり ${userRemainder} 正解！</div>`;
+                    document.getElementById('correctSound').play();
+                } else {
+                    allCorrect = false;
+                    resultHTML += `<div class="incorrect">${problem.textContent} = ${userAnswer} あまり ${userRemainder} 不正解。</div>`;
+                    document.getElementById('incorrectSound').play();
+                }
+            });
+            document.getElementById('answerResults').innerHTML = resultHTML;
+
+            if (allCorrect && !alreadyAwarded) {
+                const rarityPoints = {
+                    '★1': 1,
+                    '★2': 2,
+                    '★3': 3,
+                    '★4': 4,
+                    '★5': 5,
+                    '★10': 10,
+                    '★15': 15
+                };
+                addPoints(rarityPoints[currentDifficulty]);
+                alreadyAwarded = true; // ポイントをすでに付与済みとする
+                if (darkMode) {
+                    // 通常モードに戻す
+                    document.body.classList.remove('dark-mode');
+                    darkMode = false;
+                }
+            }
+        }
+
+        function addPoints(points) {
+            totalPoints += points;
+            document.getElementById('points').innerText = totalPoints;
+        }
+
+        function startTimeAttack() {
+            document.getElementById('timeAttackResults').innerHTML = '';
+            generateTimeAttackProblems();
+            startTime = new Date();
+        }
+
+        function generateTimeAttackProblems() {
+            timeAttackProblems = [];
+            for (let i = 0; i < 20; i++) {
+                const num1 = Math.floor(Math.random() * 9) + 1;
+                const num2 = Math.floor(Math.random() * 9) + 1;
+                timeAttackProblems.push({ num1, num2 });
+            }
+            currentProblemIndex = 0;
+            displayTimeAttackProblem();
+        }
+
+        function displayTimeAttackProblem() {
+            if (currentProblemIndex < timeAttackProblems.length) {
+                const problem = timeAttackProblems[currentProblemIndex];
+                const timeAttackProblemsDiv = document.getElementById('timeAttackProblems');
+                timeAttackProblemsDiv.innerHTML = `
+                    ${problem.num1} x ${problem.num2} =
+                    <input type="text" class="input" id="ta-answer">
+                `;
+            } else {
+                endTimeAttack();
+            }
+        }
+
+        function inputNumber(num) {
+            inputValue += num;
+            document.getElementById('ta-answer').value = inputValue;
+        }
+
+        function submitAnswer() {
+            checkTimeAttackAnswer();
+            inputValue = "";
+        }
+
+        function checkTimeAttackAnswer() {
+            const userAnswer = parseInt(document.getElementById('ta-answer').value);
+            const problem = timeAttackProblems[currentProblemIndex];
+            const correctAnswer = problem.num1 * problem.num2;
+
+            if (userAnswer === correctAnswer) {
+                document.getElementById('correctSound').play();
+                currentProblemIndex++;
+                displayTimeAttackProblem();
+            } else {
+                document.getElementById('incorrectSound').play();
+                addPenaltyTime();
+                displayTimeAttackProblem();
+            }
+        }
+
+        function addPenaltyTime() {
+            const currentTime = new Date();
+            startTime = new Date(startTime.getTime() + 3000); // 3秒を加算
+        }
+
+        function endTimeAttack() {
+            const endTime = new Date();
+            const elapsedTime = (endTime - startTime) / 1000;
+
+            let rank;
+            if (elapsedTime <= 10) {
+                rank = 'ロケット級';
+            } else if (elapsedTime <= 13) {
+                rank = '飛行機級';
+            } else if (elapsedTime <= 16) {
+                rank = '超特急級';
+            } else if (elapsedTime <= 20) {
+                rank = '特急級';
+            } else if (elapsedTime <= 25) {
+                rank = '快速級';
+            } else if (elapsedTime <= 30) {
+                rank = '急行級';
+            } else {
+                rank = '普通級';
+            }
+
+            if (elapsedTime < bestTime) {
+                bestTime = elapsedTime;
+            }
+
+            ranking.push(elapsedTime);
+            ranking.sort((a, b) => a - b);
+            localStorage.setItem('ranking', JSON.stringify(ranking));
+
+            const rankIndex = ranking.indexOf(elapsedTime) + 1;
+            const bestRankIndex = ranking.indexOf(bestTime) + 1;
+
+            document.getElementById('timeAttackResults').innerHTML = `
+                タイム: ${elapsedTime.toFixed(2)}秒<br>
+                称号: ${rank}<br>
+                あなたのランク: ${rankIndex}位<br>
+                ベストタイム: ${bestTime.toFixed(2)}秒 (${bestRankIndex}位)
+            `;
+
+            updateRanking();
+        }
+
+        function updateRanking() {
+            const rankingDiv = document.getElementById('ranking');
+            rankingDiv.innerHTML = '<h3>ランキング</h3>';
+            ranking.forEach((time, index) => {
+                rankingDiv.innerHTML += `<p>${index + 1}位: ${time.toFixed(2)}秒</p>`;
+            });
+        }
+
+        window.onload = function() {
+            document.getElementById('mathProblems').innerHTML = '<p>ガチャを引くボタンを押して、割り算問題を表示してください。</p>';
+            updateRanking();
+        };
+    </script>
+</body>
+</html>
